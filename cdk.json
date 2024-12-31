@@ -1,5 +1,5 @@
 {
-  "app": "dotnet run --project src/Ez/Ez.csproj -arg1 value",
+  "app": "dotnet run --project src/Ez/Ez.csproj cdk",
   "watch": {
     "include": [
       "**"

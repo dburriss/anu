@@ -1,17 +1,97 @@
-﻿using Amazon.CDK;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System;
+using System.ComponentModel;
 
-namespace Ez
+using Amazon.CDK;
+
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+
+using Spectre.Console.Cli;
+
+namespace Ez;
+
+internal sealed class Program
 {
-    sealed class Program
+    public static void Main(string[] args)
     {
-        public static void Main(string[] args)
+        var cli = new CommandApp();
+        cli.Configure(config =>
         {
-            Console.WriteLine($"Arg count {args.Length}");
-            var app = new App();
-            new EzStack(app, "EzStack", new StackProps
+            config.SetApplicationName("ez");
+            config.AddCommand<LaunchCommand>("launch")
+                .WithAlias("run")
+                .WithDescription("Launch the system")
+                .WithExample("launch","-e", "production", "--local");
+            
+            config.AddCommand<CdkCommand>("cdk")
+                .WithAlias("deploy")
+                .WithDescription("Deploy the system")
+                .WithExample("cdk","-e", "production");
+            
+            #if DEBUG
+            config.PropagateExceptions();
+            config.ValidateExamples();
+            #endif
+        });
+        cli.Run(args);
+    }
+}
+
+public class LaunchCommand : Command<LaunchCommand.Settings>
+{
+    public class Settings : CommandSettings
+    {
+        [Description("The environment to run the system in")]
+        [CommandOption("-e|--env <ENVIRONMENT>")]
+        [DefaultValue("development")]
+        public string Environment { get; set; } = "development";
+        
+        [Description("Run the system locally")]
+        [CommandOption("--local")]
+        public bool IsLocal { get; set; }
+        
+        [Description("Set the verbosity level")]
+        [CommandOption("-v|--verbose")]
+        [DefaultValue(0)]
+        public int Verbosity { get; set; }
+        
+        [Description("The urls to use for the web api")]
+        [CommandOption("-u|--urls <URLS>")]
+        public string Urls { get; set; } = "http://0.0.0.0:5001;https://0.0.0.0:5002";
+    }
+
+    public override int Execute(CommandContext context, Settings settings)
+    {
+        // setup builder and run the web api
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls(settings.Urls.Split(';'));
+        var app = builder.Build();
+        app.Run();
+        return 0;
+    }
+}
+
+public class CdkCommand: Command<CdkCommand.Settings>
+{
+    public class Settings: CommandSettings
+    {
+        [Description("The environment to run the system in")]
+        [CommandOption("-e|--env <ENVIRONMENT>")]
+        [DefaultValue("development")]
+        public string Environment { get; set; } = "development";
+        
+        [Description("Set the verbosity level")]
+        [CommandOption("-v|--verbose")]
+        [DefaultValue(0)]
+        public int Verbosity { get; set; } 
+    }
+
+    public override int Execute(CommandContext context, Settings settings)
+    {
+        var app = new App();
+        new EzStack(app,
+            "EzStack",
+            new StackProps
             {
                 // If you don't specify 'env', this stack will be environment-agnostic.
                 // Account/Region-dependent features and context lookups will not work,
@@ -39,7 +119,7 @@ namespace Ez
 
                 // For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
             });
-            app.Synth();
-        }
+        app.Synth();
+        return 0;
     }
 }
