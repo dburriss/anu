@@ -11,6 +11,8 @@
     <!-- CDK Construct Library dependencies -->
     <PackageReference Include="Amazon.CDK.Lib" Version="2.173.4" />
     <PackageReference Include="Constructs" Version="[10.0.0,11.0.0)" />
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+    <PackageReference Include="Spectre.Console.Cli" Version="0.49.1" />
 
     <!-- jsii Roslyn analyzers (un-comment to obtain compile-time checks for missing required props
     <PackageReference Include="Amazon.Jsii.Analyzers" Version="*" PrivateAssets="all" />

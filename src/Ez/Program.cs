@@ -9,6 +9,7 @@ namespace Ez
     {
         public static void Main(string[] args)
         {
+            Console.WriteLine($"Arg count {args.Length}");
             var app = new App();
             new EzStack(app, "EzStack", new StackProps
             {
