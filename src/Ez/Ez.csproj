@@ -6,12 +6,16 @@
     <!-- Roll forward to future major versions of the netcoreapp as needed -->
     <RollForward>Major</RollForward>
     <Nullable>enable</Nullable>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- CDK Construct Library dependencies -->
     <PackageReference Include="Amazon.CDK.Lib" Version="2.173.4" />
     <PackageReference Include="Constructs" Version="[10.0.0,11.0.0)" />
+    <PackageReference Include="Microsoft.Orleans.Persistence.Memory" Version="9.0.1" />
+    <PackageReference Include="Microsoft.Orleans.Reminders" Version="9.0.1" />
+    <PackageReference Include="Microsoft.Orleans.Server" Version="7.0.0" />
     <PackageReference Include="Spectre.Console" Version="0.49.1" />
     <PackageReference Include="Spectre.Console.Cli" Version="0.49.1" />
 

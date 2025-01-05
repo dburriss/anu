@@ -1,10 +1,21 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 
 using Amazon.CDK;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+using Orleans;
+using Orleans.Configuration;
+using Orleans.Hosting;
+using Orleans.Runtime;
 
 using Spectre.Console.Cli;
 
@@ -57,17 +68,69 @@ public class LaunchCommand : Command<LaunchCommand.Settings>
         
         [Description("The urls to use for the web api")]
         [CommandOption("-u|--urls <URLS>")]
-        public string Urls { get; set; } = "http://0.0.0.0:5001;https://0.0.0.0:5002";
+        public string Urls { get; set; } = "http://localhost:5000;https://localhost:5001";
     }
 
     public override int Execute(CommandContext context, Settings settings)
     {
+        // HOST
+        
         // setup builder and run the web api
         var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseUrls(settings.Urls.Split(';'));
+        //builder.WebHost.UseUrls(settings.Urls.Split(';'));
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
+        builder.Host.UseOrleans(static siloBuilder =>
+        {
+            siloBuilder.UseLocalhostClustering();
+            // set collection age limit to 2 minute
+            siloBuilder.Configure<GrainCollectionOptions>(options =>
+            {
+                options.CollectionAge = TimeSpan.FromMinutes(2);
+            });
+            siloBuilder.AddMemoryGrainStorageAsDefault();
+            siloBuilder.UseInMemoryReminderService();
+
+            siloBuilder.UseJobs();
+            siloBuilder.UseRecurringJob<TestJob>(TimeSpan.FromMinutes(1)); 
+        });
+        
+        // APP
         var app = builder.Build();
+        app.MapGet("/jobs/test/{name}", async (IGrainFactory grains, string name) =>
+        {
+            var jobGrain = await grains.CreateJobGrain<TestJob>(name);
+            var status = await jobGrain.StatusAsync();
+            return Results.Ok(new { status });
+        });
+        
+        // app.MapGet("/job/{id:guid}", async (IGrainFactory grains, Guid id) =>
+        // {
+        //     
+        // });
+        
+        app.UseHttpsRedirection(); 
         app.Run();
+        app.DisposeAsync();
         return 0;
+    }
+}
+
+public class TestJob : IJob
+{
+    private TimeSpan _jobRunTime = TimeSpan.FromMinutes(2);
+    public async Task Execute(IJobContext context)
+    {
+        Console.WriteLine($"Start working at {DateTimeOffset.UtcNow}...");
+        await Task.Delay(_jobRunTime);
+        Console.WriteLine($"Done working at {DateTimeOffset.UtcNow}...");
+    }
+
+    public Task Compensate(IJobContext context)
+    {
+        throw new NotImplementedException();
     }
 }
 
