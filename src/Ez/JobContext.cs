@@ -10,6 +10,6 @@ public interface IJobContext
 
 public class JobContext : IJobContext
 {
-    public string JobName { get; set; }
+    public required string JobName { get; set; }
     public Guid RunId { get; set; }
 }

@@ -10,7 +10,6 @@ using Orleans;
 using Orleans.Hosting;
 using Orleans.Runtime;
 
-using LifecycleExtensions = Orleans.LifecycleExtensions;
 using ServiceLifecycleStage = Orleans.ServiceLifecycleStage;
 
 namespace Ez;
@@ -44,7 +43,7 @@ public static class ISiloBuilderJobExtensions
         int stage = ServiceLifecycleStage.Active)
     {
         builder.ConfigureServices(services =>
-            services.AddTransient<Orleans.ILifecycleParticipant<ISiloLifecycle>>(
+            services.AddTransient<ILifecycleParticipant<ISiloLifecycle>>(
                 serviceProvider =>
                     new StartupTask(
                         serviceProvider,
@@ -54,18 +53,22 @@ public static class ISiloBuilderJobExtensions
         return builder;
     }
 
-    public static ISiloBuilder UseRecurringJob<TJob>(this ISiloBuilder host, TimeSpan interval) where TJob: IJob
+    public static ISiloBuilder UseRecurringJob(this ISiloBuilder host, Type jobType, TimeSpan interval)
     {
-        // TODO: Implement recurring job
-        host.ConfigureServices(services => 
+        host.ConfigureServices(services =>
             services.AddTransient<ILifecycleParticipant<ISiloLifecycle>>(
                 sp =>
                 {
-                    var jobType = typeof(TJob);
                     var jobName = jobType.Name;
                     return new RegisterReminderLifecycleParticipant(sp, jobType, jobName, interval);
                 }));
         return host;
+    }
+
+    public static ISiloBuilder UseRecurringJob<TJob>(this ISiloBuilder host, TimeSpan interval) where TJob: IJob
+    {
+        var jobType = typeof(TJob);
+        return host.UseRecurringJob(jobType, interval);
     }
 }
 
@@ -87,8 +90,7 @@ internal class StartupTask: ILifecycleParticipant<ISiloLifecycle>
 
     public void Participate(ISiloLifecycle lifecycle)
     {
-        LifecycleExtensions.Subscribe<StartupTask>(lifecycle,
-            _stage,
+        lifecycle.Subscribe<StartupTask>(_stage,
             cancellation => _startupTask(_serviceProvider, cancellation));
     }
 }
@@ -110,7 +112,8 @@ internal class RegisterReminderLifecycleParticipant(
                 Console.WriteLine($"Scheduling reminder for job {jobName}...");
                 // for each job, create a reminder
                 var job = serviceProvider.GetService(jobType);
-                if(job == null) throw new InvalidOperationException($"Job {jobType.Name} not found in service collection.");
+                if (job == null)
+                    throw new InvalidOperationException($"Job {jobType.Name} not found in service collection.");
                 var grainFactory = serviceProvider.GetRequiredService<IJobBuilder>();
                 var jobGrain = await grainFactory.StartJobAsync(job.GetType(), jobName);
                 await jobGrain.ScheduleRecurringAsync(period);

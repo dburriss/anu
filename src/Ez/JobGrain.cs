@@ -43,7 +43,7 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
         // Only set definition if not set 
         if (State.JobDefinition != null) return Task.FromResult(false);
         State.JobDefinition = jobDefinition;
-        State.Status.CurrentStatus = JobStatusEnum.Active;
+        State.Status!.CurrentStatus = JobStatusEnum.Active;
         return Task.FromResult(true);
     }
 
@@ -54,14 +54,14 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
 
     public Task<JobStatus> StatusAsync()
     {
-        State.Status.CurrentRunDuration = DateTime.UtcNow - State.Status.CurrentRunStartedAt;
+        State.Status!.CurrentRunDuration = DateTime.UtcNow - State.Status.CurrentRunStartedAt;
         var jobStatus = State.Status;
         return Task.FromResult(jobStatus);
     }
 
     public async Task CompleteAsync()
     {
-        if (State.Status.CurrentStatus != JobStatusEnum.Running) return;
+        if (State.Status!.CurrentStatus != JobStatusEnum.Running) return;
 
         _task = null;
         await CompletedState();
@@ -73,7 +73,7 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
 
     public async Task FailAsync()
     {
-        if (State.Status.CurrentStatus != JobStatusEnum.Running) return;
+        if (State.Status!.CurrentStatus != JobStatusEnum.Running) return;
         await FailedState();
         _task = null;
         var reminder = await this.GetReminder($"{this.GetPrimaryKeyString()}_status_reminder");
@@ -88,7 +88,7 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
 
     Task IRemindable.ReceiveReminder(string reminderName, TickStatus status)
     {
-        Console.WriteLine($"[{this.GetPrimaryKeyString()}<{State.Status.CurrentStatus}>]Received reminder {reminderName}...");
+        Console.WriteLine($"[{this.GetPrimaryKeyString()}<{State.Status!.CurrentStatus}>]Received reminder {reminderName}...");
         if (reminderName == $"{this.GetPrimaryKeyString()}_status_reminder")
         {
             Console.WriteLine($"[{this.GetPrimaryKeyString()}]Updating status...");
@@ -116,7 +116,7 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
 
         _logger.LogInformation("Starting job {JobName}...", this.GetPrimaryKeyString());
         await RunningState();
-        var job = _serviceProvider.GetService(State.JobDefinition.JobType) as IJob;
+        var job = _serviceProvider.GetService(State.JobDefinition!.JobType) as IJob;
         if (job == null) throw new InvalidOperationException("Job type not found.");
         _task = CreateTask(job, cancellationToken, TaskScheduler.Current);
         await this.RegisterOrUpdateReminder($"{this.GetPrimaryKeyString()}_status_reminder",
@@ -130,7 +130,7 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
             {
                 try
                 {
-                    await job.Execute(new JobContext());
+                    await job.Execute(new JobContext(){ JobName = this.GetPrimaryKeyString() });
                     await InvokeGrainAsync(taskScheduler, grain => grain.CompleteAsync());
                 }
                 catch (Exception e)
@@ -156,7 +156,7 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
 
     private async Task RunningState()
     {
-        State.Status.CurrentStatus = JobStatusEnum.Running;
+        State.Status!.CurrentStatus = JobStatusEnum.Running;
         State.Status.CurrentRunId = Guid.NewGuid();
         State.Status.CurrentRunStartedAt = DateTime.UtcNow;
         await WriteStateAsync();
@@ -164,7 +164,7 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
 
     private async Task CompletedState()
     {
-        State.Status.LastStatus = JobStatusEnum.Completed;
+        State.Status!.LastStatus = JobStatusEnum.Completed;
         State.Status.LastRunId = State.Status.CurrentRunId;
         State.Status.LastRunStartedAt = State.Status.CurrentRunStartedAt;
         State.Status.LastRunDuration = DateTime.UtcNow - State.Status.CurrentRunStartedAt;
@@ -180,7 +180,7 @@ public class JobGrain: Grain<JobState>, IJobGrain, IRemindable
 
     private Task FailedState()
     {
-        State.Status.LastStatus = JobStatusEnum.Failed;
+        State.Status!.LastStatus = JobStatusEnum.Failed;
         State.Status.LastRunId = State.Status.CurrentRunId;
         State.Status.LastRunStartedAt = State.Status.CurrentRunStartedAt;
         State.Status.LastRunDuration = DateTime.UtcNow - State.Status.CurrentRunStartedAt;
