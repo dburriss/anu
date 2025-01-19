@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Amazon.CDK;
 
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -68,6 +69,87 @@ public class EzSystem(string name)
                     #endif
                 });
         return cli.Run(args);
+    }
+
+    public EzSystem Feature(Action<FeatureDescriptor> feature)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+public class FeatureDescriptor
+{
+    public string Title { get; set; }
+    public string Description { get; set; }
+    public FeatureDescriptor WithJob<TJob>(Func<JobTriggers, JobTriggers> trigger) where TJob: IJob
+    {
+        throw new NotImplementedException();
+    }
+    
+    public FeatureDescriptor WithUsecase<TUsecase, TCommand>(Func<UsecaseTriggers<TUsecase,TCommand>,UsecaseTriggers<TUsecase,TCommand>> triggers) where TUsecase: Usecase<TCommand>
+    {
+        throw new NotImplementedException();
+    }
+}
+
+public abstract class Usecase<TCommand>
+{
+    public abstract Task Execute(TCommand command);
+    public Task Compensate(TCommand command) => Task.CompletedTask;
+}
+
+public abstract class Trigger
+{
+    
+}
+
+public class JobTriggers
+{
+    private List<Trigger> _triggers = new();
+    public JobTriggers AddTimer(Func<TimerTriggerBuilder, TimerTriggerBuilder> configure)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+public class UsecaseTriggers<TUsecase,TCommand> where TUsecase : Usecase<TCommand> 
+{
+    public UsecaseTriggers<TUsecase, TCommand> AddPut(string path) 
+    {
+        throw new NotImplementedException();
+    }
+    
+    public UsecaseTriggers<TUsecase,TCommand> AddPut(string path, Func<IServiceProvider, HttpRequest, TCommand> map)
+    {
+        throw new NotImplementedException();
+    }
+
+    public UsecaseTriggers<TUsecase,TCommand> AddQueue(string queueName)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+public class TimerTriggerBuilder
+{
+    public TimerTriggerBuilder AutoRetry()
+    {
+        throw new NotImplementedException();
+    }
+
+    public TimerTriggerBuilder MaxFailures(int maxFailures)
+    {
+        throw new NotImplementedException();
+    }
+
+    public TimerTriggerBuilder EveryMinutes(int minutes)
+    {
+        throw new NotImplementedException();
+    }
+    
+    public TimerTriggerBuilder Enrich(Action<IServiceProvider, IJobContext> enrich)
+    {
+        throw new NotImplementedException();
     }
 }
 
