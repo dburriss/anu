@@ -1,7 +1,8 @@
 using Amazon.CDK;
+
 using Constructs;
 
-namespace Ez
+namespace Ez.AWS
 {
     public class EzStack : Stack
     {
