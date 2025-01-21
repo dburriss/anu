@@ -10,7 +10,7 @@ using Orleans.Runtime;
 
 using ServiceLifecycleStage = Orleans.ServiceLifecycleStage;
 
-namespace Ez;
+namespace Ez.Lifecycles;
 
 public static class ISiloBuilderExtensions
 {
@@ -32,7 +32,6 @@ public static class ISiloBuilderExtensions
     
     
 }
-
 
 internal class StartupTask: ILifecycleParticipant<ISiloLifecycle>
 {

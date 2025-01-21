@@ -7,6 +7,7 @@ using Orleans.Runtime;
 
 namespace Ez.Jobs;
 
+// todo: investigate using startup task
 internal class RegisterReminderLifecycleParticipant(
     IServiceProvider serviceProvider,
     Type jobType,
