@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Ez;
+namespace Ez.Jobs;
 
 public interface IJobContext
 {

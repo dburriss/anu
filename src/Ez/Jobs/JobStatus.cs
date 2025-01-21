@@ -2,7 +2,7 @@ using System;
 
 using Orleans;
 
-namespace Ez;
+namespace Ez.Jobs;
 
 [GenerateSerializer]
 public class JobStatus

@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 using Amazon.CDK;
 
+using Ez.Jobs;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

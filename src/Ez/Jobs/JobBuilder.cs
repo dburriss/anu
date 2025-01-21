@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 using Orleans;
 
-namespace Ez;
+namespace Ez.Jobs;
 public interface IJobBuilder
 {
     Task<IJobGrain> StartJobAsync(Type jobType, string? name);

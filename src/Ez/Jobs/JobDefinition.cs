@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 using Orleans;
 
-namespace Ez;
+namespace Ez.Jobs;
 
 [GenerateSerializer]
 public class JobDefinition

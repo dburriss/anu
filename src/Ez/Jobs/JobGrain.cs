@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Orleans;
 using Orleans.Runtime;
 
-namespace Ez;
+namespace Ez.Jobs;
 
 public interface IJobGrain: IGrainWithStringKey, IRemindable
 {

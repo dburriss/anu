@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace Ez;
+namespace Ez.Jobs;
 
 public interface IJob
 {

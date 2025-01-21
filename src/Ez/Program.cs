@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 
 using Ez;
+using Ez.Jobs;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
