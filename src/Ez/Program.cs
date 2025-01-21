@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 
 using Ez;
 
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 return 
@@ -28,13 +29,29 @@ return
                 triggers =>
                 {
                     return triggers
-                        .AddPut("/contacts", (_, req) => new CreateContactCmd())
-                        .AddQueue("contacts-queue");
+                        .AddPut("/contacts/{id:guid}", 
+                            opt => opt.Mapper = async (_, ctx) => await ctx.GetCreateContactCommand())
+                        .AddQueue("create-contacts-queue");
                 });
         })
         // .WithRecurringJob<SleeperJob>(TimeSpan.FromHours(1))
         .Run(args);
 
+public static class HttpContextExtensions
+{
+    public class CreatContactData
+    {
+        public string Name { get; set; }
+        public string Email { get; set; }
+    }
+    public static async Task<CreateContactCmd> GetCreateContactCommand(this HttpContext context)
+    {
+        var request = context.Request;
+        var id = request.Query["id"];
+        var data = await request.ReadFromJsonAsync<CreatContactData>();
+        return new CreateContactCmd(id!, data!.Name, data.Email);
+    }
+}
 public class SleeperJob(ILogger<SleeperJob> logger) : IJob
 {
     private TimeSpan _sleepTime = TimeSpan.FromMinutes(2);
@@ -52,10 +69,9 @@ public class CreateContact : Usecase<CreateContactCmd>
 {
     public override Task Execute(CreateContactCmd command)
     {
-        throw new NotImplementedException();
+        Console.WriteLine($"Executing CreateContact usecase...{command.Id}");
+        return Task.CompletedTask;
     }
 }
 
-public record CreateContactCmd
-{
-}
+public record CreateContactCmd(string Id, string Name, string Email);
