@@ -32,17 +32,27 @@ public static class ISiloBuilderJobExtensions
 
         return builder;
     }
-
-    public static ISiloBuilder UseRecurringJob(this ISiloBuilder host, Type jobType, TimeSpan interval)
+    
+    public static ISiloBuilder UseRecurringJob(this ISiloBuilder host, Type jobType, TimerOptions options)
     {
+        if (options.Interval < TimeSpan.FromMinutes(1))
+        {
+            throw new ArgumentException($"Interval must be at least 1 minute. Is {options.Interval}");
+        }
         host.ConfigureServices(services =>
             services.AddTransient<ILifecycleParticipant<ISiloLifecycle>>(
                 sp =>
                 {
                     var jobName = jobType.Name;
-                    return new RegisterReminderLifecycleParticipant(sp, jobType, jobName, interval);
+                    return new RegisterReminderLifecycleParticipant(sp, jobType, jobName, options.Interval);
                 }));
         return host;
+    }
+
+    public static ISiloBuilder UseRecurringJob(this ISiloBuilder host, Type jobType, TimeSpan interval)
+    {
+        var intervalOptions = new TimerOptions { Interval = interval };
+        return host.UseRecurringJob(jobType, intervalOptions);
     }
 
     public static ISiloBuilder UseRecurringJob<TJob>(this ISiloBuilder host, TimeSpan interval) where TJob: IJob

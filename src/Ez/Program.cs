@@ -19,7 +19,7 @@ return
                 {
                     return configure.Enrich((_, context) => context.Data.Add("test", "data"))
                         .AutoRetry()
-                        .MaxFailures(3)
+                        .MaxRetries(3)
                         .EveryMinutes(2);
                 }));
         })

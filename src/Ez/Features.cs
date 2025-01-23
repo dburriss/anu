@@ -13,15 +13,22 @@ namespace Ez;
 
 public class FeatureDescriptor
 {
-    private JobTriggers _jobTriggers = new();
+    
     public string? Title { get; set; }
     public string? Description { get; set; }
+    
+    // Jobs
+    private readonly List<JobTrigger> _jobTriggers = new();
+    public IReadOnlyList<JobTrigger> JobTriggers => _jobTriggers.ToImmutableList();
+    // Usecases
     private readonly List<UsecaseTrigger> _usecaseTriggers = new();
     public IReadOnlyList<UsecaseTrigger> UsecaseTriggers => _usecaseTriggers.ToImmutableList();
     
     public void WithJob<TJob>(Func<JobTriggers, JobTriggers> trigger) where TJob: IJob
     {
-        _jobTriggers = trigger(_jobTriggers);
+        var jobTriggers = trigger(new JobTriggers());
+        var triggers = jobTriggers.ToJobTriggers(typeof(TJob));
+        _jobTriggers.AddRange(triggers);
     }
 
     public void WithUsecase<TUsecase, TCommand>(
@@ -36,6 +43,121 @@ public class FeatureDescriptor
     }
 }
 
+// === JOBS ===
+
+/// <summary>
+/// Fluent API for adding triggers to a job
+/// </summary>
+public class JobTriggers
+{
+    private List<TimerOptions> _timerOptions = new();
+
+    public JobTriggers AddTimer(Func<TimerTriggerBuilder, TimerTriggerBuilder> configure)
+    {
+        var builder = new TimerTriggerBuilder();
+        configure(builder);
+        var timerOptions = builder.Build();
+        _timerOptions.Add(timerOptions);
+        return this;
+    }
+    
+    public JobTriggers AddTimer(TimeSpan interval)
+    {
+        _timerOptions.Add(new TimerOptions { Interval = interval });
+        
+        return this;
+    }
+
+    public IEnumerable<JobTrigger> ToJobTriggers(Type type)
+    {
+        foreach (var timerOption in _timerOptions)
+        {
+            yield return new JobTimerTrigger(type, timerOption);
+        }
+    }
+}
+
+/// <summary>
+/// Fluent API for configuring a timer trigger
+/// </summary>
+public class TimerTriggerBuilder
+{
+    private TimeSpan _interval = TimeSpan.FromMinutes(60);
+    private int _maxRetries = 3;
+    private bool _autoRetry = false;
+
+    public TimerTriggerBuilder AutoRetry(bool autoRetry = true)
+    {
+        _autoRetry = autoRetry;
+        return this;
+    }
+
+    public TimerTriggerBuilder MaxRetries(int maxRetries)
+    {
+        _autoRetry = true;
+        _maxRetries = maxRetries;
+        return this;
+    }
+
+    public TimerTriggerBuilder EveryMinutes(int minutes)
+    {
+        _interval = TimeSpan.FromMinutes(minutes);
+        return this;
+    }
+    
+    public TimerTriggerBuilder EveryHours(int hours)
+    {
+        _interval = TimeSpan.FromHours(hours);
+        return this;
+    }
+    
+    public TimerTriggerBuilder Cron(string cron)
+    {
+        throw new NotImplementedException();
+        return this;
+    }
+
+    public TimerTriggerBuilder Enrich(Action<IServiceProvider, IJobContext> enrich)
+    {
+        return this;
+    }
+
+    public TimerOptions Build()
+    {
+        return new TimerOptions()
+        {
+            MaxRetries = _maxRetries,
+            Interval = _interval,
+            AutoRetry = _autoRetry
+        };
+    }
+}
+
+public abstract class JobTrigger
+{
+    public Type JobType { get; protected set; }
+    public string TriggerName { get; protected set; }
+}
+
+public class JobTimerTrigger : JobTrigger
+{
+    public TimerOptions Options { get; }
+    public JobTimerTrigger(Type jobType, TimerOptions options)
+    {
+        JobType = jobType;
+        Options = options;
+        TriggerName = $"timer__{jobType.Name}";
+    }
+}
+
+public class TimerOptions
+{
+    public int MaxRetries { get; set; } = 3;
+    public TimeSpan Interval { get; set; } = TimeSpan.FromMinutes(60);
+    public bool AutoRetry { get; set; }
+}
+
+// === USECASES ===
 public abstract class Usecase{
     public abstract Task Execute(object command, CancellationToken cancellationToken = default);
     public abstract Task Compensate(object command);
@@ -61,14 +183,9 @@ public abstract class Usecase<TCommand> : Usecase
     }
 }
 
-public class JobTriggers
-{
-    public JobTriggers AddTimer(Func<TimerTriggerBuilder, TimerTriggerBuilder> configure)
-    {
-        return this;
-    }
-}
-
+/// <summary>
+/// A trigger for a usecase
+/// </summary>
 public abstract class UsecaseTrigger
 {
     public Type UsecaseType { get; protected set; }
@@ -81,15 +198,18 @@ public abstract class UsecaseTrigger
     }
 }
 
+/// <summary>
+/// A endpoint trigger for a usecase
+/// </summary>
 public class EndpointTrigger : UsecaseTrigger
 {
-    private readonly EndpointOptions _options;
+    public EndpointOptions Options { get; }
     public string Path { get; }
     public string Method { get; }
-    
+
     public EndpointTrigger(Type usecaseType, string path, string method, Func<HttpContext, Task<object>> mapper, EndpointOptions options)
     {
-        _options = options;
+        Options = options;
         UsecaseType = usecaseType;
         Func<object,Task<object>> mapperFunc = async (o) => await mapper((HttpContext)o);
         Path = path;
@@ -101,15 +221,23 @@ public class EndpointTrigger : UsecaseTrigger
     public override async Task TriggerAsync(Usecase usecase, HttpContext httpContext)
     {
         await base.TriggerAsync(usecase, httpContext);
-        httpContext.Response.StatusCode = _options.DefaultStatusCode;
+        httpContext.Response.StatusCode = Options.DefaultStatusCode;
     }
 }
 
+/// <summary>
+/// Options for configuring an endpoint trigger
+/// </summary>
 public class EndpointOptions
 {
     public int DefaultStatusCode { get; set; } = 200;
 }
 
+/// <summary>
+/// Fluent API for configuring usecase triggers
+/// </summary>
+/// <typeparam name="TUsecase"></typeparam>
+/// <typeparam name="TCommand"></typeparam>
 public class UsecaseTriggers<TUsecase, TCommand> where TUsecase: Usecase<TCommand>
 {
     private Dictionary<string,EndpointTriggerOptions<TCommand>> _putTriggerOptionsMap = new();
@@ -144,7 +272,7 @@ public class UsecaseTriggers<TUsecase, TCommand> where TUsecase: Usecase<TComman
 }
 
 /// <summary>
-/// Configuration options for endpoint triggers
+/// Fluent configuration of options for endpoint triggers
 /// </summary>
 /// <typeparam name="TCommand"></typeparam>
 public class EndpointTriggerOptions<TCommand>
@@ -160,29 +288,6 @@ public class EndpointTriggerOptions<TCommand>
             Mapper = async ctx => await options.Mapper(ctx),
             DefaultStatusCode = options.DefaultStatusCode,
         };
-    }
-}
-
-public class TimerTriggerBuilder
-{
-    public TimerTriggerBuilder AutoRetry()
-    {
-        return this;
-    }
-
-    public TimerTriggerBuilder MaxFailures(int maxFailures)
-    {
-        return this;
-    }
-
-    public TimerTriggerBuilder EveryMinutes(int minutes)
-    {
-        return this;
-    }
-
-    public TimerTriggerBuilder Enrich(Action<IServiceProvider, IJobContext> enrich)
-    {
-        return this;
     }
 }
 

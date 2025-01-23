@@ -66,10 +66,11 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
 
             siloBuilder.UseJobs();
             // todo: add recurring jobs back
-            // foreach (var job in descriptor.RecurringJobs)
-            // {
-            //     siloBuilder.UseRecurringJob(job.Item1, job.Item2);
-            // }
+            var jobTriggers = descriptor.Features.SelectMany(x => x.JobTriggers.OfType<JobTimerTrigger>());
+            foreach (var jobTrigger in jobTriggers)
+            {
+                siloBuilder.UseRecurringJob(jobTrigger.JobType, jobTrigger.Options);
+            }
         });
 
         // APP
@@ -88,6 +89,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
                                     typeof(UsecaseTrigger),
                                     endpointTrigger.TriggerName);
                             await trigger.TriggerAsync(usecase, httpContext);
+                            httpContext.Response.StatusCode = endpointTrigger.Options.DefaultStatusCode;
                         });
                     break;
             }

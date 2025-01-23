@@ -11,7 +11,6 @@ namespace Ez;
 public class EzSystem(string name)
 {
     private bool _isLocal = true;
-    private readonly List<Tuple<Type, TimeSpan>> _recurringJobs = new();
     private readonly List<FeatureDescriptor> _features = new();
 
     public static EzSystem Create(string name)
@@ -28,7 +27,7 @@ public class EzSystem(string name)
     public EzSystem WithRecurringJob<TJob>(TimeSpan interval) where TJob: IJob
     {
         //todo: put into default feature
-        _recurringJobs.Add(Tuple.Create(typeof(TJob), interval));
+        Feature(f => f.WithJob<TJob>(t => t.AddTimer(interval)));
         return this;
     }
 
