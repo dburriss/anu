@@ -12,7 +12,7 @@ public class EzSystem(string name)
 {
     private bool _isLocal = true;
     private readonly List<Tuple<Type, TimeSpan>> _recurringJobs = new();
-    private readonly List<EndpointTriggerDescriptor> _endpointTriggers = new();
+    private readonly List<FeatureDescriptor> _features = new();
 
     public static EzSystem Create(string name)
     {
@@ -39,20 +39,17 @@ public class EzSystem(string name)
         
         if (descriptor.Title == null)
             descriptor.Title = "Default";
-        
+
         if (descriptor.Description == null)
             descriptor.Description = "Default feature";
         
+        _features.Add(descriptor);
         return this;
     }
     
     public int Run(string[] args)
     {
-        var descriptor = new SystemDescriptor(
-            name,
-            _isLocal,
-            _recurringJobs,
-            _endpointTriggers);
+        var descriptor = new SystemDescriptor(name, _isLocal, _features);
 
         var cli = new CommandApp();
         cli.Configure(config =>
