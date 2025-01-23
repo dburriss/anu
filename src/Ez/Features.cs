@@ -108,7 +108,6 @@ public class EndpointTrigger : UsecaseTrigger
 public class EndpointOptions
 {
     public int DefaultStatusCode { get; set; } = 200;
-    public int DefaultErrorCode { get; set; } = 500;
 }
 
 public class UsecaseTriggers<TUsecase, TCommand> where TUsecase: Usecase<TCommand>
@@ -138,7 +137,6 @@ public class UsecaseTriggers<TUsecase, TCommand> where TUsecase: Usecase<TComman
             Func<HttpContext, Task<object>> mapper = async ctx => (await options.Mapper(ctx))!;
             var endpointOptions = new EndpointOptions(){
                 DefaultStatusCode = options.DefaultStatusCode,
-                DefaultErrorCode = options.DefaultErrorCode
             };
             yield return new EndpointTrigger(t, path, "PUT", mapper, endpointOptions);
         }
@@ -154,7 +152,6 @@ public class EndpointTriggerOptions<TCommand>
     public Func<HttpContext, Task<TCommand?>> Mapper { get; set; } =
         async (ctx) => await ctx.Request.ReadFromJsonAsync<TCommand>();
     public int DefaultStatusCode { get; set; } = 200;
-    public int DefaultErrorCode { get; set; } = 500;
     
     public static implicit operator EndpointTriggerOptions<object>(EndpointTriggerOptions<TCommand> options)
     {
@@ -162,7 +159,6 @@ public class EndpointTriggerOptions<TCommand>
         {
             Mapper = async ctx => await options.Mapper(ctx),
             DefaultStatusCode = options.DefaultStatusCode,
-            DefaultErrorCode = options.DefaultErrorCode
         };
     }
 }
