@@ -5,6 +5,9 @@ using System.Linq;
 using System.Text.Json.Serialization;
 
 using Ez.Jobs;
+using Ez.Jobs.Triggers;
+using Ez.Usecases;
+using Ez.Usecases.Triggers;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;

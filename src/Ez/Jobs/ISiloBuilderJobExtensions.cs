@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Reflection;
 
+using Ez.Jobs.Triggers;
+
 using Microsoft.Extensions.DependencyInjection;
 
 using Orleans;

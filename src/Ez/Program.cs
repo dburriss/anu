@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Ez;
 using Ez.Jobs;
 using Ez.Queues;
+using Ez.Usecases;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
