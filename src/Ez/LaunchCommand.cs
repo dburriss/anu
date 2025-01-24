@@ -29,6 +29,8 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         // setup builder and run the web api
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<SystemDescriptor>(_ => descriptor);
+        builder.Services.AddTransient<Queues.IQueueClient, Queues.QueueClient>();
+        
         // USECASES
         // todo: should this just be filtered from the triggers?
         var usecases = descriptor.Features.SelectMany(f => f.UsecaseTriggers.Select(t => t.UsecaseType));
@@ -42,6 +44,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
             descriptor.Features
                 .SelectMany(f => f.UsecaseTriggers)
                 .ToImmutableList();
+        
         // ENDPOINT TRIGGERS
         foreach (var trigger in triggers)
         {
@@ -53,6 +56,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         {
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
+        
         builder.Host.UseOrleans(siloBuilder =>
         {
             siloBuilder.UseLocalhostClustering();
@@ -92,6 +96,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
                             httpContext.Response.StatusCode = endpointTrigger.Options.DefaultStatusCode;
                         });
                     break;
+                // todo: POST, DELETE
             }
         // app.MapGet("/jobs/test/{name}", async (IGrainFactory grains, string name) =>
         // {

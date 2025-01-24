@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 using Ez;
 using Ez.Jobs;
+using Ez.Queues;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -12,20 +13,20 @@ return
     EzSystem.Create("Ez")
         .Feature(feature =>
         {
-            feature.Title = "Example Job";
+            feature.Title = "Welcome contact";
             feature.Description = "This is an example of a recurring job.";
-            feature.WithJob<SleeperJob>(
+            feature.WithJob<WelcomeJob>(
                 triggers => triggers.AddTimer(configure =>
                 {
                     return configure.Enrich((_, context) => context.Data.Add("test", "data"))
                         .AutoRetry()
-                        .MaxRetries(3)
-                        .EveryMinutes(2);
+                        .MaxRetries(10)
+                        .EveryMinutes(1);
                 }));
         })
         .Feature(feature =>
         {
-            feature.Title = "Example usecase";
+            feature.Title = "Create Contact";
             feature.Description = "This is an example of accepting a command";
             feature.WithUsecase<CreateContact, CreateContactCmd>(
                 triggers =>
@@ -40,18 +41,28 @@ return
                         .AddQueue("create-contacts-queue");
                 });
         })
-        // .WithRecurringJob<SleeperJob>(TimeSpan.FromHours(1))
         .Run(args);
 
 
-public class SleeperJob(ILogger<SleeperJob> logger) : IJob
+public class WelcomeJob(ILogger<WelcomeJob> logger, IQueueClient queueClient) : IJob
 {
-    private TimeSpan _sleepTime = TimeSpan.FromMinutes(2);
+
     public async Task Execute(IJobContext context)
     {
         logger.LogInformation("Start working at {JobStart}...", DateTimeOffset.UtcNow);
-        await Task.Delay(_sleepTime);
+        var msgs = queueClient.DequeueBatch("contact-created", 2);
+        await foreach(var msg in msgs)
+        {
+            await HandleMessage(msg);
+        }
+        // await queueClient.RegisterHandler("contact-created", HandleMessage);
         logger.LogInformation("Done working at {JobEnd}...", DateTimeOffset.UtcNow);
+    }
+
+    private Task HandleMessage(QueueMessage message)
+    {
+        Console.WriteLine($"Handling message {message.Id} {message.Content} from {message.CreatedTimestamp} ");
+        return Task.CompletedTask;
     }
 
     public Task Compensate(IJobContext context) => throw new NotImplementedException();
@@ -59,10 +70,24 @@ public class SleeperJob(ILogger<SleeperJob> logger) : IJob
 
 public class CreateContact : Usecase<CreateContactCmd>
 {
-    public override Task Execute(CreateContactCmd command, CancellationToken cancellationToken = default)
+    private readonly IQueueClient _queueClient;
+
+    public CreateContact(IQueueClient queueClient)
+    {
+        _queueClient = queueClient;
+    }
+    
+    public override async Task Execute(CreateContactCmd command, CancellationToken cancellationToken = default)
     {
         Console.WriteLine($"Executing CreateContact usecase...{command.Id}");
-        return Task.CompletedTask;
+        // todo: store event
+        // todo: easy outbox?
+        var msg = new QueueMessage()
+        {
+            Content = $"Received {command.Id}",
+        };
+        Console.WriteLine($"Sending message {msg.Id} at {msg.CreatedTimestamp}");
+        await _queueClient.SendMessage("contact-created", msg);
     }
 }
 
@@ -77,8 +102,9 @@ public static class HttpContextExtensions
     public static async Task<CreateContactCmd> GetCreateContactCommand(this HttpContext context)
     {
         var request = context.Request;
-        var id = request.Query["id"];
+        var id = request.RouteValues["id"]?.ToString();
         var data = await request.ReadFromJsonAsync<CreatContactData>();
-        return new CreateContactCmd(id!, data!.Name, data.Email);
+        var cmd = new CreateContactCmd(id!, data!.Name, data.Email);
+        return cmd;
     }
 }
