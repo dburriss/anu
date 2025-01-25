@@ -3,9 +3,11 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Linq;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 
 using Ez.Jobs;
 using Ez.Jobs.Triggers;
+using Ez.Queues;
 using Ez.Usecases;
 using Ez.Usecases.Triggers;
 
@@ -14,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
-using Orleans.Configuration;
 using Orleans.Hosting;
 
 using Spectre.Console.Cli;
@@ -32,52 +33,55 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         // setup builder and run the web api
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<SystemDescriptor>(_ => descriptor);
-        builder.Services.AddTransient<Queues.IQueueClient, Queues.QueueClient>();
-        
-        // USECASES
-        // todo: should this just be filtered from the triggers?
+        builder.Services.AddTransient<IQueueClient, QueueClient>();
+
+        // ADD USECASES TO DEPENDENCY CONTAINER
         var usecases = descriptor.Features.SelectMany(f => f.UsecaseTriggers.Select(t => t.UsecaseType));
-        foreach (var usecaseType in usecases.Distinct())
-        {
-            //check if usecase is already registered
-            builder.Services.TryAddTransient(usecaseType);
-        }
-        
-        var triggers = 
+        foreach (var usecaseType in usecases.Distinct()) builder.Services.TryAddTransient(usecaseType);
+
+        // ADD TRIGGERS TO DEPENDENCY CONTAINER
+        var triggers =
             descriptor.Features
                 .SelectMany(f => f.UsecaseTriggers)
                 .ToImmutableList();
-        
-        // ENDPOINT TRIGGERS
+
         foreach (var trigger in triggers)
-        {
-            builder.Services.AddKeyedTransient(typeof(UsecaseTrigger),trigger.TriggerName, (sp, key) => trigger);
-        }
-        
+            builder.Services.AddKeyedTransient(typeof(UsecaseTrigger), trigger.TriggerName, (sp, key) => trigger);
+
         //builder.WebHost.UseUrls(settings.Urls.Split(';'));
         builder.Services.ConfigureHttpJsonOptions(options =>
         {
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
-        
+
         builder.Host.UseOrleans(siloBuilder =>
         {
             siloBuilder.UseLocalhostClustering();
             // set collection age limit to 2 minute
-            siloBuilder.Configure<GrainCollectionOptions>(options =>
-            {
-                options.CollectionAge = TimeSpan.FromMinutes(2);
-            });
+            // siloBuilder.Configure<GrainCollectionOptions>(options =>
+            // {
+            //     options.CollectionAge = TimeSpan.FromMinutes(2);
+            // });
             siloBuilder.AddMemoryGrainStorageAsDefault();
             siloBuilder.UseInMemoryReminderService();
-
-            siloBuilder.UseJobs();
-            // todo: add recurring jobs back
-            var jobTriggers = descriptor.Features.SelectMany(x => x.JobTriggers.OfType<JobTimerTrigger>());
-            foreach (var jobTrigger in jobTriggers)
+            siloBuilder.AddStartupTask((provider, token) =>
             {
-                siloBuilder.UseRecurringJob(jobTrigger.JobType, jobTrigger.Options);
-            }
+                // QUEUE HANDLERS
+                var queueTriggers = triggers.OfType<QueueTrigger>();
+                var queueClient = provider.GetRequiredService<IQueueClient>();
+                foreach (var queueTrigger in queueTriggers)
+                    queueClient.RegisterHandler(queueTrigger.QueueName,
+                        async message =>
+                        {
+                            var usecase = (Usecase)provider.GetRequiredService(queueTrigger.UsecaseType);
+                            await queueTrigger.TriggerAsync(usecase, message);
+                        });
+                return Task.CompletedTask;
+            });
+            siloBuilder.UseJobs();
+            // ADD JOBS TO DEPENDENCY CONTAINER
+            var jobTriggers = descriptor.Features.SelectMany(x => x.JobTriggers.OfType<JobTimerTrigger>());
+            foreach (var jobTrigger in jobTriggers) siloBuilder.UseRecurringJob(jobTrigger.JobType, jobTrigger.Options);
         });
 
         // APP
@@ -90,7 +94,8 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
                     app.MapPut(endpointTrigger.Path,
                         async httpContext =>
                         {
-                            var usecase = (Usecase)httpContext.RequestServices.GetRequiredService(endpointTrigger.UsecaseType);
+                            var usecase =
+                                (Usecase)httpContext.RequestServices.GetRequiredService(endpointTrigger.UsecaseType);
                             var trigger =
                                 (UsecaseTrigger)httpContext.RequestServices.GetRequiredKeyedService(
                                     typeof(UsecaseTrigger),
@@ -112,8 +117,8 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         // {
         //     
         // });
-
         app.UseHttpsRedirection();
+
         app.Run();
         app.DisposeAsync();
         return 0;

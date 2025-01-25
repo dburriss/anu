@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using Orleans;
 
 namespace Ez.Queues;
@@ -26,13 +28,14 @@ public class QueueMessage
     public DateTimeOffset CreatedTimestamp { get; set; } = DateTimeOffset.UtcNow;
 }
 
-public class QueueActor : Grain, IQueueActor
+public class QueueActor(ILogger<QueueActor> logger) : Grain, IQueueActor
 {
     private readonly ConcurrentQueue<QueueMessage> _messages = new();
     private readonly HashSet<string> _subscribers = new();
 
     public async Task Enqueue(QueueMessage message)
     {
+        logger.LogInformation("Enqueueing message {Id}...", message.Id);
         _messages.Enqueue(message);
         await NotifySubscribers(message);
     }
@@ -84,34 +87,29 @@ public interface IQueueClient
     IAsyncEnumerable<QueueMessage> DequeueBatch(string queueName, ushort batchSize = 100);
 }
 
-public class QueueClient : IQueueClient
+public class QueueClient(IClusterClient orleansClient, ILogger<QueueClient> logger): IQueueClient
 {
-    private readonly IClusterClient _orleansClient;
-
     // Stores active handlers for each queue
     private readonly ConcurrentDictionary<string, Func<QueueMessage, Task>> _handlers = new();
 
-    public QueueClient(IClusterClient orleansClient)
-    {
-        _orleansClient = orleansClient;
-    }
-
     public async Task SendMessage(string queueName, QueueMessage message)
     {
-        var queueActor = _orleansClient.GetGrain<IQueueActor>(queueName);
+        var queueActor = orleansClient.GetGrain<IQueueActor>(queueName);
+        logger.LogInformation("Enqueueing message {Id} to queue {Queue}...", message.Id, queueName);
         await queueActor.Enqueue(message);
     }
 
     public async Task<QueueMessage?> Dequeue(string queueName)
     {
-        var queueActor = _orleansClient.GetGrain<IQueueActor>(queueName);
+        var queueActor = orleansClient.GetGrain<IQueueActor>(queueName);
+        logger.LogInformation("Dequeueing message from queue {Queue}...", queueName);
         return await queueActor.Dequeue();
     }
 
     public async IAsyncEnumerable<QueueMessage> DequeueBatch(string queueName, ushort batchSize = 100)
     {
         var count = 0;
-        var queueActor = _orleansClient.GetGrain<IQueueActor>(queueName);
+        var queueActor = orleansClient.GetGrain<IQueueActor>(queueName);
         while (count < batchSize)
         {
             var msg = await queueActor.Dequeue();
@@ -131,15 +129,17 @@ public class QueueClient : IQueueClient
         }
 
         // Register as a subscriber with the queue actor
-        var queueActor = _orleansClient.GetGrain<IQueueActor>(queueName);
+        var queueActor = orleansClient.GetGrain<IQueueActor>(queueName);
         // var subscriberId = Guid.NewGuid().ToString();
         // await queueActor.RegisterSubscriber(subscriberId);
 
         // Poll for messages in a background task
         _ = Task.Run(async () =>
         {
+            // todo: need a better way of doing this. prob an actor
             while (_handlers.ContainsKey(queueName))
-            {
+            { 
+                logger.LogTrace("Running handler for queue {Queue}...", queueName);
                 var message = await queueActor.Dequeue();
                 if (message != null)
                 {
