@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using Ez;
 using Ez.Jobs;
+using Ez.Queries;
 using Ez.Queues;
 using Ez.Usecases;
 
@@ -39,6 +40,14 @@ return
                             })
                         .AddQueue("create-customer-queue");
                 });
+            feature.WithQuery<CustomerQuery, Guid, string>(
+                triggers => 
+                    triggers.AddGet("/customers/{id:guid}", 
+                        opt => 
+                        {
+                            opt.InputMapper = async ctx => Guid.Parse(ctx.Request.RouteValues["id"]?.ToString() ?? string.Empty);
+                            opt.OutputMapper = async result => result;
+                        }));
         })
         .Feature(feature =>
                 {
@@ -117,8 +126,8 @@ public class BatchWelcomeEmailJob(ILogger<BatchWelcomeEmailJob> logger, IQueueCl
     {
         var queue = "customer-created-queue";
         logger.LogInformation("Start working at {JobStart}...", DateTimeOffset.UtcNow);
-        var msgs = queueClient.DequeueBatch(queue, 2);
-        await foreach(var msg in msgs)
+        var messages = queueClient.DequeueBatch(queue, 2);
+        await foreach(var msg in messages)
         {
             await HandleMessage(msg);
         }
@@ -133,5 +142,19 @@ public class BatchWelcomeEmailJob(ILogger<BatchWelcomeEmailJob> logger, IQueueCl
         return Task.CompletedTask;
     }
 
-    public Task Compensate(IJobContext context) => throw new NotImplementedException();
+    public Task Compensate(IJobContext context) => Task.CompletedTask;
+}
+
+public class CustomerQuery : Query<Guid,string>
+{
+    public override Task<string> Execute(Guid id, CancellationToken cancellationToken = default)
+    {
+        
+        return Task.FromResult($"Bob");
+    }
+
+    public override Task Compensate(Guid id)
+    {
+        return Task.CompletedTask;
+    }
 }

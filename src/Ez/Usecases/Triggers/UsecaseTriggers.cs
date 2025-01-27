@@ -38,14 +38,14 @@ public abstract class UsecaseTrigger
 /// <typeparam name="TCommand"></typeparam>
 public class UsecaseTriggers<TUsecase, TCommand> where TUsecase: Usecase<TCommand>
 {
-    private Dictionary<string,EndpointTriggerOptions<TCommand>> _putTriggerOptionsMap = new();
+    private Dictionary<string,UsecaseEndpointTriggerOptions<TCommand>> _putTriggerOptionsMap = new();
     private Dictionary<string, QueueTriggerOptions<TCommand>> _queueTriggerOptionsMap = new();
 
     public UsecaseTriggers<TUsecase, TCommand> AddPut(
         string path,
-        Action<EndpointTriggerOptions<TCommand>>? options = null)
+        Action<UsecaseEndpointTriggerOptions<TCommand>>? options = null)
     {
-        var opt = new EndpointTriggerOptions<TCommand>();
+        var opt = new UsecaseEndpointTriggerOptions<TCommand>();
         options?.Invoke(opt);
         _putTriggerOptionsMap.Add(path, opt);
         return this;
@@ -69,7 +69,7 @@ public class UsecaseTriggers<TUsecase, TCommand> where TUsecase: Usecase<TComman
             var endpointOptions = new EndpointOptions(){
                 DefaultStatusCode = options.DefaultStatusCode,
             };
-            yield return new EndpointTrigger(t, path, "PUT", mapper, endpointOptions);
+            yield return new UsecaseEndpointTrigger(t, path, "PUT", mapper, endpointOptions);
         }
         
         // Queue triggers
@@ -91,13 +91,13 @@ public class UsecaseTriggers<TUsecase, TCommand> where TUsecase: Usecase<TComman
 /// <summary>
 /// A endpoint trigger for a usecase
 /// </summary>
-public class EndpointTrigger : UsecaseTrigger
+public class UsecaseEndpointTrigger : UsecaseTrigger
 {
     public EndpointOptions Options { get; }
     public string Path { get; }
     public string Method { get; }
 
-    public EndpointTrigger(Type usecaseType, string path, string method, Func<HttpContext, Task<object>> mapper, EndpointOptions options)
+    public UsecaseEndpointTrigger(Type usecaseType, string path, string method, Func<HttpContext, Task<object>> mapper, EndpointOptions options)
     {
         Options = options;
         UsecaseType = usecaseType;
@@ -127,15 +127,15 @@ public class EndpointOptions
 /// Fluent configuration of options for endpoint triggers
 /// </summary>
 /// <typeparam name="TCommand"></typeparam>
-public class EndpointTriggerOptions<TCommand>
+public class UsecaseEndpointTriggerOptions<TCommand>
 {
     public Func<HttpContext, Task<TCommand?>> Mapper { get; set; } =
         async (ctx) => await ctx.Request.ReadFromJsonAsync<TCommand>();
     public int DefaultStatusCode { get; set; } = 200;
     
-    public static implicit operator EndpointTriggerOptions<object>(EndpointTriggerOptions<TCommand> options)
+    public static implicit operator UsecaseEndpointTriggerOptions<object>(UsecaseEndpointTriggerOptions<TCommand> options)
     {
-        return new EndpointTriggerOptions<object>
+        return new UsecaseEndpointTriggerOptions<object>
         {
             Mapper = async ctx => await options.Mapper(ctx),
             DefaultStatusCode = options.DefaultStatusCode,

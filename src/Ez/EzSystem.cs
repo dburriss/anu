@@ -26,7 +26,6 @@ public class EzSystem(string name)
 
     public EzSystem WithRecurringJob<TJob>(TimeSpan interval) where TJob: IJob
     {
-        //todo: put into default feature
         Feature(f => f.WithJob<TJob>(t => t.AddTimer(interval)));
         return this;
     }
@@ -74,4 +73,12 @@ public class EzSystem(string name)
         return cli.Run(args);
     }
 
+}
+
+/// <summary>
+/// Interface for a provider of the Ez system.
+/// </summary>
+public interface IEzProvider
+{
+    
 }

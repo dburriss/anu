@@ -7,11 +7,14 @@ using System.Threading.Tasks;
 
 using Ez.Jobs;
 using Ez.Jobs.Triggers;
+using Ez.Queries;
+using Ez.Queries.Triggers;
 using Ez.Queues;
 using Ez.Usecases;
 using Ez.Usecases.Triggers;
 
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -39,14 +42,30 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         var usecases = descriptor.Features.SelectMany(f => f.UsecaseTriggers.Select(t => t.UsecaseType));
         foreach (var usecaseType in usecases.Distinct()) builder.Services.TryAddTransient(usecaseType);
 
+        // ADD QUERIES TO DEPENDENCY CONTAINER
+        var queries = descriptor.Features.SelectMany(f => f.QueryTriggers.Select(t => t.QueryType));
+        foreach (var query in queries.Distinct()) builder.Services.TryAddTransient(query);
+
         // ADD TRIGGERS TO DEPENDENCY CONTAINER
-        var triggers =
+        var usecaseTriggers =
             descriptor.Features
                 .SelectMany(f => f.UsecaseTriggers)
                 .ToImmutableList();
 
-        foreach (var trigger in triggers)
-            builder.Services.AddKeyedTransient(typeof(UsecaseTrigger), trigger.TriggerName, (sp, key) => trigger);
+        foreach (var usecaseTrigger in usecaseTriggers)
+            builder.Services.AddKeyedTransient(typeof(UsecaseTrigger),
+                usecaseTrigger.TriggerName,
+                (sp, key) => usecaseTrigger);
+
+        var queryTriggers =
+            descriptor.Features
+                .SelectMany(f => f.QueryTriggers)
+                .ToImmutableList();
+
+        foreach (var queryTrigger in queryTriggers)
+            builder.Services.AddKeyedTransient(typeof(QueryTrigger),
+                queryTrigger.TriggerName,
+                (sp, key) => queryTrigger);
 
         //builder.WebHost.UseUrls(settings.Urls.Split(';'));
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -67,7 +86,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
             siloBuilder.AddStartupTask((provider, token) =>
             {
                 // QUEUE HANDLERS
-                var queueTriggers = triggers.OfType<QueueTrigger>();
+                var queueTriggers = usecaseTriggers.OfType<QueueTrigger>();
                 var queueClient = provider.GetRequiredService<IQueueClient>();
                 foreach (var queueTrigger in queueTriggers)
                     queueClient.RegisterHandler(queueTrigger.QueueName,
@@ -86,8 +105,8 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
 
         // APP
         var app = builder.Build();
-        var endpointTriggers = triggers.OfType<EndpointTrigger>();
-        foreach (var endpointTrigger in endpointTriggers)
+        var usecaseEndpointTriggers = usecaseTriggers.OfType<UsecaseEndpointTrigger>();
+        foreach (var endpointTrigger in usecaseEndpointTriggers)
             switch (endpointTrigger.Method)
             {
                 case "PUT":
@@ -106,6 +125,23 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
                     break;
                 // todo: POST, DELETE
             }
+
+        var queryEndpointTriggers = queryTriggers.OfType<QueryEndpointTrigger>();
+        foreach (var endpointTrigger in queryEndpointTriggers)
+            app.MapGet(endpointTrigger.Path,
+                async httpContext =>
+                {
+                    var query =
+                        (Query)httpContext.RequestServices.GetRequiredService(endpointTrigger.QueryType);
+                    var trigger =
+                        (QueryTrigger)httpContext.RequestServices.GetRequiredKeyedService(
+                            typeof(QueryTrigger),
+                            endpointTrigger.TriggerName);
+                    var result = await trigger.TriggerAsync(query, httpContext);
+                    httpContext.Response.StatusCode = endpointTrigger.Options.DefaultStatusCode;
+                    await httpContext.Response.WriteAsJsonAsync(result);
+                });
+
         // app.MapGet("/jobs/test/{name}", async (IGrainFactory grains, string name) =>
         // {
         //     var jobGrain = await grains.CreateJobGrain<TestJob>(name);
