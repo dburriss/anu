@@ -12,11 +12,11 @@ using Ez.Usecases;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-return 
+return
     EzSystem.Create("Ez")
         .Feature(feature =>
         {
-            feature.Title = "Creating Customers";
+            feature.Title = "Customer signup";
             feature.Description = "Signup of new customers";
             feature.WithUsecase<AcceptCustomerSignup, CreateCustomerCmd>(
                 triggers =>
@@ -28,12 +28,12 @@ return
                                 opt.DefaultStatusCode = StatusCodes.Status201Created;
                                 opt.Mapper = async ctx => await ctx.GetCreateCustomerCommand();
                             });
-                }); 
+                });
             feature.WithUsecase<CreateCustomer, CreateCustomerCmd>(
                 triggers =>
                 {
                     return triggers
-                        .AddPut("/customers/{id:guid}", 
+                        .AddPut("/customers/{id:guid}",
                             opt =>
                             {
                                 opt.Mapper = async ctx => await ctx.GetCreateCustomerCommand();
@@ -41,27 +41,28 @@ return
                         .AddQueue("create-customer-queue");
                 });
             feature.WithQuery<CustomerQuery, Guid, string>(
-                triggers => 
-                    triggers.AddGet("/customers/{id:guid}", 
-                        opt => 
+                triggers =>
+                    triggers.AddGet("/customers/{id:guid}",
+                        opt =>
                         {
-                            opt.InputMapper = async ctx => Guid.Parse(ctx.Request.RouteValues["id"]?.ToString() ?? string.Empty);
-                            opt.OutputMapper = async result => result;
+                            opt.InputMapper = async ctx =>
+                                Guid.Parse(ctx.Request.RouteValues["id"]?.ToString() ?? string.Empty);
+                            opt.OutputMapper = async result => $"{result} the builder";
                         }));
         })
         .Feature(feature =>
+        {
+            feature.Title = "Welcome emails";
+            feature.Description = "A batch job to send emails to new customers.";
+            feature.WithJob<BatchWelcomeEmailJob>(
+                triggers => triggers.AddTimer(configure =>
                 {
-                    feature.Title = "Welcome emails";
-                    feature.Description = "A batch job to send emails to new customers.";
-                    feature.WithJob<BatchWelcomeEmailJob>(
-                        triggers => triggers.AddTimer(configure =>
-                        {
-                            return configure.Enrich((_, context) => context.Data.Add("test", "data"))
-                                .AutoRetry()
-                                .MaxRetries(10)
-                                .EveryMinutes(1);
-                        }));
-                })
+                    return configure.Enrich((_, context) => context.Data.Add("test", "data"))
+                        .AutoRetry()
+                        .MaxRetries(10)
+                        .EveryMinutes(1);
+                }));
+        })
         .Run(args);
 
 
@@ -74,9 +75,9 @@ public class AcceptCustomerSignup(IQueueClient queueClient, ILogger<AcceptCustom
         logger.LogInformation("Signup accepted...{Id}", command.Id);
         // todo: store event
         // todo: easy outbox?
-        var msg = new QueueMessage()
+        var msg = new QueueMessage
         {
-            Content = JsonSerializer.Serialize(command) 
+            Content = JsonSerializer.Serialize(command)
         };
         var queue = "create-customer-queue";
         logger.LogInformation("Message {Id} placed on {Queue} at {Timestamp}", msg.Id, queue, msg.CreatedTimestamp);
@@ -92,9 +93,9 @@ public class CreateCustomer(IQueueClient queueClient, ILogger<CreateCustomer> lo
         logger.LogInformation("Creating contact...{Id}", command.Id);
         // todo: store event
         // todo: easy outbox?
-        var msg = new QueueMessage()
+        var msg = new QueueMessage
         {
-            Content = JsonSerializer.Serialize(command) 
+            Content = JsonSerializer.Serialize(command)
         };
         var queue = "customer-created-queue";
         logger.LogInformation("Message {Id} placed on {Queue} at {Timestamp}", msg.Id, queue, msg.CreatedTimestamp);
@@ -103,13 +104,9 @@ public class CreateCustomer(IQueueClient queueClient, ILogger<CreateCustomer> lo
 }
 
 public record CreateCustomerCmd(string Id, string Name, string Email);
+
 public static class HttpContextExtensions
 {
-    public class CreatContactData
-    {
-        public string Name { get; set; }
-        public string Email { get; set; }
-    }
     public static async Task<CreateCustomerCmd> GetCreateCustomerCommand(this HttpContext context)
     {
         var request = context.Request;
@@ -118,21 +115,29 @@ public static class HttpContextExtensions
         var cmd = new CreateCustomerCmd(id!, data!.Name, data.Email);
         return cmd;
     }
+
+    public class CreatContactData
+    {
+        public string Name { get; set; }
+        public string Email { get; set; }
+    }
 }
 
-public class BatchWelcomeEmailJob(ILogger<BatchWelcomeEmailJob> logger, IQueueClient queueClient) : IJob
+public class BatchWelcomeEmailJob(ILogger<BatchWelcomeEmailJob> logger, IQueueClient queueClient): IJob
 {
     public async Task Execute(IJobContext context)
     {
         var queue = "customer-created-queue";
         logger.LogInformation("Start working at {JobStart}...", DateTimeOffset.UtcNow);
         var messages = queueClient.DequeueBatch(queue, 2);
-        await foreach(var msg in messages)
-        {
-            await HandleMessage(msg);
-        }
+        await foreach (var msg in messages) await HandleMessage(msg);
         // await queueClient.RegisterHandler("contact-created", HandleMessage);
         logger.LogInformation("Done working at {JobEnd}...", DateTimeOffset.UtcNow);
+    }
+
+    public Task Compensate(IJobContext context)
+    {
+        return Task.CompletedTask;
     }
 
     private Task HandleMessage(QueueMessage message)
@@ -141,16 +146,13 @@ public class BatchWelcomeEmailJob(ILogger<BatchWelcomeEmailJob> logger, IQueueCl
         Console.WriteLine($"Email sent to {createdCustomer?.Email}");
         return Task.CompletedTask;
     }
-
-    public Task Compensate(IJobContext context) => Task.CompletedTask;
 }
 
-public class CustomerQuery : Query<Guid,string>
+public class CustomerQuery: Query<Guid, string>
 {
     public override Task<string> Execute(Guid id, CancellationToken cancellationToken = default)
     {
-        
-        return Task.FromResult($"Bob");
+        return Task.FromResult($"Customer {id}: Bob");
     }
 
     public override Task Compensate(Guid id)
