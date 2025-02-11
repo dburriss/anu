@@ -15,6 +15,7 @@ using Ez.Usecases.Triggers;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -31,20 +32,29 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
     {
         var descriptor = context.Data as SystemDescriptor;
         if (descriptor == null) throw new InvalidOperationException("System descriptor not found.");
+
+        var provider = descriptor.InfrastructureProvider;
+        // CONFIGURATION
+        var configurationBuilder = new ConfigurationBuilder();
+        provider.Configuration(configurationBuilder);
+        var configuration = configurationBuilder.Build();
+        
         // HOST
-
         // setup builder and run the web api
-        var builder = WebApplication.CreateBuilder();
-        builder.Services.AddSingleton<SystemDescriptor>(_ => descriptor);
-        builder.Services.AddTransient<IQueueClient, QueueClient>();
-
+        var applicationBuilder = WebApplication.CreateBuilder();
+        applicationBuilder.Configuration.AddConfiguration(configuration);
+        applicationBuilder.Services.AddSingleton<SystemDescriptor>(_ => descriptor);
+        applicationBuilder.Services.AddTransient<IQueueClient, QueueClient>();
+        
+        provider.ConfigureServices(applicationBuilder.Configuration, applicationBuilder.Services);
+        
         // ADD USECASES TO DEPENDENCY CONTAINER
         var usecases = descriptor.Features.SelectMany(f => f.UsecaseTriggers.Select(t => t.UsecaseType));
-        foreach (var usecaseType in usecases.Distinct()) builder.Services.TryAddTransient(usecaseType);
+        foreach (var usecaseType in usecases.Distinct()) applicationBuilder.Services.TryAddTransient(usecaseType);
 
         // ADD QUERIES TO DEPENDENCY CONTAINER
         var queries = descriptor.Features.SelectMany(f => f.QueryTriggers.Select(t => t.QueryType));
-        foreach (var query in queries.Distinct()) builder.Services.TryAddTransient(query);
+        foreach (var query in queries.Distinct()) applicationBuilder.Services.TryAddTransient(query);
 
         // ADD TRIGGERS TO DEPENDENCY CONTAINER
         var usecaseTriggers =
@@ -53,7 +63,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
                 .ToImmutableList();
 
         foreach (var usecaseTrigger in usecaseTriggers)
-            builder.Services.AddKeyedTransient(typeof(UsecaseTrigger),
+            applicationBuilder.Services.AddKeyedTransient(typeof(UsecaseTrigger),
                 usecaseTrigger.TriggerName,
                 (sp, key) => usecaseTrigger);
 
@@ -63,26 +73,26 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
                 .ToImmutableList();
 
         foreach (var queryTrigger in queryTriggers)
-            builder.Services.AddKeyedTransient(typeof(QueryTrigger),
+            applicationBuilder.Services.AddKeyedTransient(typeof(QueryTrigger),
                 queryTrigger.TriggerName,
                 (sp, key) => queryTrigger);
 
         //builder.WebHost.UseUrls(settings.Urls.Split(';'));
-        builder.Services.ConfigureHttpJsonOptions(options =>
+        applicationBuilder.Services.ConfigureHttpJsonOptions(options =>
         {
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
 
-        builder.Host.UseOrleans(siloBuilder =>
+        applicationBuilder.Host.UseOrleans(siloBuilder =>
         {
-            siloBuilder.UseLocalhostClustering();
+            // TODO: Call provider.ConfigureSilos to configure silos
+            provider.ConfigureSilos(applicationBuilder.Configuration, applicationBuilder.Services, siloBuilder);
             // set collection age limit to 2 minute
             // siloBuilder.Configure<GrainCollectionOptions>(options =>
             // {
             //     options.CollectionAge = TimeSpan.FromMinutes(2);
             // });
-            siloBuilder.AddMemoryGrainStorageAsDefault();
-            siloBuilder.UseInMemoryReminderService();
+
             siloBuilder.AddStartupTask((provider, token) =>
             {
                 // QUEUE HANDLERS
@@ -104,7 +114,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         });
 
         // APP
-        var app = builder.Build();
+        var app = applicationBuilder.Build();
         var usecaseEndpointTriggers = usecaseTriggers.OfType<UsecaseEndpointTrigger>();
         foreach (var endpointTrigger in usecaseEndpointTriggers)
             switch (endpointTrigger.Method)
@@ -154,7 +164,9 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         //     
         // });
         app.UseHttpsRedirection();
-
+        
+        provider.ConfigureApp(configuration, app);
+        
         app.Run();
         app.DisposeAsync();
         return 0;
@@ -168,7 +180,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         public string Environment { get; set; } = "development";
 
         [Description("Run the system locally")]
-        [CommandOption("--local")]
+        [CommandOption("-l|--local")]
         public bool IsLocal { get; set; }
 
         [Description("Set the verbosity level")]
@@ -179,5 +191,9 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         [Description("The urls to use for the web api")]
         [CommandOption("-u|--urls <URLS>")]
         public string Urls { get; set; } = "http://localhost:5000;https://localhost:5001";
+        
+        [Description("The infrastructure provider to use")]
+        [CommandOption("-p|--provider <PROVIDER>")]
+        public string Provider { get; set; } = "local";
     }
 }

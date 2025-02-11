@@ -10,6 +10,7 @@ public class CdkCommand: Command<CdkCommand.Settings>
 {
     public override int Execute(CommandContext context, Settings settings)
     {
+        SystemDescriptor descriptor = (context.Data as SystemDescriptor)!;
         var app = new App();
         new EzStack(app,
             "EzStack",

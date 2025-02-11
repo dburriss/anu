@@ -25,4 +25,8 @@
     -->
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="AzureWebApps\" />
+  </ItemGroup>
+
 </Project>

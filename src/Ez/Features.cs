@@ -58,6 +58,8 @@ public class FeatureDescriptor
 
 public record SystemDescriptor(
     string Name,
-    bool IsLocal,
-    IReadOnlyList<FeatureDescriptor> Features);
+    IReadOnlyList<FeatureDescriptor> Features, 
+    InfrastructureProvider InfrastructureProvider)
+{
+}
 
