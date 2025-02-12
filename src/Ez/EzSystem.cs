@@ -51,6 +51,10 @@ public class EzSystem(string name)
             var launchCmd = config.AddCommand<LaunchCommand>("launch")
                 .WithDescription("Launch the system")
                 .WithExample("launch", "-e", "dev", "--local");
+            
+            config.AddCommand<ProvidersCommand>("providers")
+                .WithDescription("List the available providers")
+                .WithData(_providers);
 
             var providers = new Dictionary<string, InfrastructureProvider>();
             // add local provider if no provider is specified

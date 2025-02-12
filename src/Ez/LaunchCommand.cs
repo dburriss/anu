@@ -197,3 +197,5 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         public string Provider { get; set; } = "local";
     }
 }
+
+// command to list the providers
