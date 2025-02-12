@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Ez.Core;
 using Ez.Jobs;
 using Ez.Jobs.Triggers;
 using Ez.Queries;

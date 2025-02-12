@@ -165,7 +165,7 @@ public class LaunchCommand: Command<LaunchCommand.Settings>
         // });
         app.UseHttpsRedirection();
         
-        provider.ConfigureApp(configuration, app);
+        provider.ConfigureApplicationBuilder(configuration, app);
         
         app.Run();
         app.DisposeAsync();

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using Ez.Core;
 using Ez.Jobs;
 
 using Spectre.Console.Cli;

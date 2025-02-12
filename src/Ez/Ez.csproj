@@ -29,4 +29,8 @@
     <Folder Include="AzureWebApps\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Ez.Core\Ez.Core.csproj" />
+  </ItemGroup>
+
 </Project>
