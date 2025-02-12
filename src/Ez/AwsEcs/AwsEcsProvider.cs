@@ -10,10 +10,9 @@ using Spectre.Console.Cli;
 
 namespace Ez.AWS;
 
-public class AwsEcsProvider(IConfigurator configurator)
-    : InfrastructureProvider<AwsEcsConfig>(configurator)
+public class AwsEcsProvider()
+    : InfrastructureProvider<AwsEcsConfig>("aws-ecs")
 {
-    public override string CommandName { get; } = "aws-ecs";
     public override string? DeployCommandDescription { get; }
     public override string? RunCommandDescription { get; }
     public override void Configuration(IConfigurationBuilder configuration)

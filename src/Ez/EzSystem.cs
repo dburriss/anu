@@ -52,11 +52,13 @@ public class EzSystem(string name)
                 .WithDescription("Launch the system")
                 .WithExample("launch", "-e", "dev", "--local");
 
+            var providers = new Dictionary<string, InfrastructureProvider>();
             // add local provider if no provider is specified
             if (args.Length == 0 || ContainsLocalArg(args) || _providers.Count == 0)
             {
                 // add local provider to descriptors
-                var infra = new LocalProvider(config);
+                var infra = new LocalProvider();
+                providers.Add("_local", infra);
                 var descriptor = new SystemDescriptor(name, _features, infra);
                 launchCmd.WithData(descriptor);
             }
@@ -65,37 +67,40 @@ public class EzSystem(string name)
             {
                 //register the deployment commands
                 var providerType = _providers[providerKey];
-                var provider = Activator.CreateInstance(providerType, config) as InfrastructureProvider;
+                var provider = Activator.CreateInstance(providerType, providerKey) as InfrastructureProvider;
+                providers.Add(providerKey, provider!);
                 provider!.RegisterDeployCommand(config);
             }
 
-            // if only 1 provider, and not --local, use it as default
-            if (_providers.Count == 1 && !ContainsLocalArg(args))
+            if (args.Length > 0)
             {
-                var provider = _providers.Values.First();
-                var infra = Activator.CreateInstance(provider, config) as InfrastructureProvider;
-                var descriptor = new SystemDescriptor(name, _features, infra!);
-                launchCmd.WithData(descriptor);
-            }
-            // else look for the -p|--provider arg for the provider
-            else
-            {
-                var providerIndex = args.ToList().FindIndex(x => x == "-p" || x == "--provider");
-                if (providerIndex == -1 || providerIndex > args.Length - 1)
+                // if only 1 provider, and not --local, use it as default
+                if (providers.Count == 1 || ContainsLocalArg(args))
                 {
-                    throw new ArgumentException("No provider specified");
+                    var provider = providers.First().Value;
+                    var descriptor = new SystemDescriptor(name, _features, provider!);
+                    launchCmd.WithData(descriptor);
                 }
-                var providerKey = args[providerIndex + 1];
-                if (!_providers.ContainsKey(providerKey))
+                // else look for the -p|--provider arg for the provider
+                else
                 {
-                    throw new ArgumentException($"Provider {providerKey} not found");
-                }
-                var providerType = _providers[providerKey];
-                var infra = Activator.CreateInstance(providerType, config) as InfrastructureProvider;
-                var descriptor = new SystemDescriptor(name, _features, infra!);
-                launchCmd.WithData(descriptor);
-            }
+                    var providerIndex = args.ToList().FindIndex(x => x == "-p" || x == "--provider");
+                    if (providerIndex == -1 || providerIndex > args.Length - 1)
+                    {
+                        throw new ArgumentException("No provider specified");
+                    }
 
+                    var providerKey = args[providerIndex + 1];
+                    if (!_providers.ContainsKey(providerKey))
+                    {
+                        throw new ArgumentException($"Provider {providerKey} not found");
+                    }
+
+                    var provider = providers[providerKey];
+                    var descriptor = new SystemDescriptor(name, _features, provider!);
+                    launchCmd.WithData(descriptor);
+                }
+            }
             // config.AddCommand<CdkCommand>("cdk")
             //     .WithAlias("deploy")
             //     .WithDescription("Deploy the system")

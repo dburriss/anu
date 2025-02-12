@@ -21,16 +21,16 @@ public interface InfrastructureProvider
     void ConfigureApplicationBuilder(IConfiguration config, IApplicationBuilder app);
 }
 
-public abstract class InfrastructureProvider<TCommand>(IConfigurator configurator) : InfrastructureProvider 
+public abstract class InfrastructureProvider<TCommand>(string name) : InfrastructureProvider 
     where TCommand: class, ICommand
 {
-    public abstract string CommandName { get; }
+    public virtual string CommandName { get; init; } = name;
     public abstract string? DeployCommandDescription { get; }
     public abstract string? RunCommandDescription { get; }
 
     public void RegisterDeployCommand(IConfigurator configurator)
     {
-        var deploy = $"deploy-{CommandName.ToLower()}";
+        var deploy = $"{CommandName.ToLower()}";
         if (DeployCommandDescription != null)
             configurator.AddCommand<TCommand>(deploy).WithDescription(DeployCommandDescription);
         else configurator.AddCommand<TCommand>(deploy);

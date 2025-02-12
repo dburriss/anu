@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="AzureAppServiceProvider.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Farmer" Version="1.9.11" />
+      <PackageReference Include="Microsoft.Orleans.Persistence.Memory" Version="9.1.1" />
+      <PackageReference Include="Microsoft.Orleans.Reminders" Version="9.1.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Ez.Core\Ez.Core.csproj" />
+    </ItemGroup>
+
+</Project>

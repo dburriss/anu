@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using Ez;
 using Ez.AWS;
+using Ez.AzureProviders;
 using Ez.Jobs;
 using Ez.Queries;
 using Ez.Queues;
@@ -15,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 return
     EzSystem.Create("Ez")
-        // .AddProvider<AwsEcsProvider>("aws-ecs")
+        .AddProvider<AzureAppServiceProvider>("az-app-serv")
         .Feature(feature =>
         {
             feature.Title = "Customer signup";

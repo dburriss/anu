@@ -12,10 +12,9 @@ using Spectre.Console.Cli;
 
 namespace Ez;
 
-public class LocalProvider(IConfigurator configurator)
-    : InfrastructureProvider<LocalCommand>(configurator)
+public class LocalProvider(string name = "local")
+    : InfrastructureProvider<LocalCommand>(name)
 {
-    public override string CommandName => "local";
     public override string? DeployCommandDescription => null;
     public override string? RunCommandDescription => "Run the system locally";
 
