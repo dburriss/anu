@@ -5,23 +5,12 @@ open Ez.Core
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
 open Orleans.Hosting
-open Spectre.Console.Cli
+
 
 module Environment =
     let GetEnvironmentVariable name =
         Environment.GetEnvironmentVariable name
         |> Option.ofObj
-
-type Settings() =
-    inherit CommandSettings()
-    
-type AzureAppServiceCommand() =
-    inherit Command<Settings>()
-
-    override this.Execute(context: CommandContext, settings: Settings) =
-        Console.WriteLine("Nothing needed for running locally...")
-        0
-
 type AzureAppServiceProvider(name) =
     inherit InfrastructureProvider<AzureAppServiceCommand>(name)
 

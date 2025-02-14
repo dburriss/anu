@@ -105,11 +105,6 @@ public class EzSystem(string name)
                     launchCmd.WithData(descriptor);
                 }
             }
-            // config.AddCommand<CdkCommand>("cdk")
-            //     .WithAlias("deploy")
-            //     .WithDescription("Deploy the system")
-            //     .WithExample("cdk", "-e", "production")
-            //     .WithData(descriptor);
 
             #if DEBUG
             config.PropagateExceptions();
