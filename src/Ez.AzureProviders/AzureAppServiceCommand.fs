@@ -41,7 +41,11 @@ type AzureAppServiceCommand() =
         let deployment =
             arm {
                 location Location.WestEurope
+                add_resource host
             }
+        
+        deployment
+        |> Writer.quickWrite "infra"
         
         0
 
